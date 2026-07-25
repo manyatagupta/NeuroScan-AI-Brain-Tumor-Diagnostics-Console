@@ -549,7 +549,6 @@ with col2:
         st.markdown('<p style="color:var(--text-muted); font-size:16px; text-align:center; padding: 40px;">Scan locked. Click <b style="color:var(--cyan);">Initialize Neural Analysis</b> to engage model.</p>', unsafe_allow_html=True)
     else:
         with st.spinner("Extracting deep features..."):
-            time.sleep(0.9)
             prediction = model.predict(img_array)
             predicted_idx = np.argmax(prediction)
             predicted_class = CLASSES[predicted_idx]
@@ -583,9 +582,9 @@ with col2:
                 with st.spinner("Rendering thermal map..."):
                     heatmap = make_gradcam_heatmap(img_array, model)
                 if heatmap is not None:
-                    heatmap_overlay = overlay_heatmap(image.resize(IMG_SIZE), heatmap)
+                    heatmap_overlay = overlay_heatmap(img_resized, heatmap)
                     hc1, hc2 = st.columns(2)
-                    hc1.image(image.resize(IMG_SIZE), caption="Input Scan", use_column_width=True)
+                    hc1.image(img_resized, caption="Input Scan", use_column_width=True)
                     hc2.image(heatmap_overlay, caption="Network Activation Zones", use_column_width=True)
                 else:
                     st.info("Heatmap isn't available for this model's architecture.")
@@ -597,7 +596,6 @@ with col2:
         st.markdown('<div class="panel-title">🤖 AI Clinical Synthesis</div>', unsafe_allow_html=True)
 
         with st.spinner("Synthesizing clinical report..."):
-            time.sleep(1.2)
             report = generate_local_report(predicted_class, "en")
 
         tabs = st.tabs(["📋 Executive Summary", "⚠️ Protocol & Options", "🔬 Clinical Metadata"])
