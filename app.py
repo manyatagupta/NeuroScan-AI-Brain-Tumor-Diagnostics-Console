@@ -282,6 +282,12 @@ div[data-testid="stFileUploader"] > section:hover {
 # ---------------------------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
+if "analyzed_image_name" not in st.session_state:
+    st.session_state.analyzed_image_name = None
+if "prediction_data" not in st.session_state:
+    st.session_state.prediction_data = None
+if "heatmap_data" not in st.session_state:
+    st.session_state.heatmap_data = None
 
 # ---------------------------------------------------
 # Load model (cached)
@@ -526,6 +532,12 @@ with col1:
         img_resized = image.resize(IMG_SIZE)
         img_array = np.expand_dims(np.array(img_resized), axis=0)
         img_array = preprocess_input(img_array)
+        
+        # Reset analysis if a new file is uploaded
+        if st.session_state.analyzed_image_name != uploaded_file.name:
+            st.session_state.analyzed_image_name = uploaded_file.name
+            st.session_state.prediction_data = None
+            st.session_state.heatmap_data = None
     else:
         st.markdown(
             '<div style="border:2px dashed rgba(255,255,255,0.1); border-radius:18px; padding:50px; '
@@ -534,7 +546,13 @@ with col1:
             unsafe_allow_html=True
         )
 
-    run_analysis = st.button("Initialize Neural Analysis 🚀") if uploaded_file is not None else False
+    if uploaded_file is not None:
+        if st.button("Initialize Neural Analysis 🚀") or st.session_state.prediction_data is not None:
+            run_analysis = True
+        else:
+            run_analysis = False
+    else:
+        run_analysis = False
 
 # ---------------------------------------------------
 # Column 2 — Analysis & Report
@@ -548,14 +566,25 @@ with col2:
     elif not run_analysis:
         st.markdown('<p style="color:var(--text-muted); font-size:16px; text-align:center; padding: 40px;">Scan locked. Click <b style="color:var(--cyan);">Initialize Neural Analysis</b> to engage model.</p>', unsafe_allow_html=True)
     else:
-        with st.spinner("Extracting deep features..."):
-            prediction = model.predict(img_array)
-            predicted_idx = np.argmax(prediction)
-            predicted_class = CLASSES[predicted_idx]
-            confidence = np.max(prediction) * 100
-            color = CLASS_COLORS[predicted_class]
+        if st.session_state.prediction_data is None:
+            with st.spinner("Extracting deep features..."):
+                prediction = model.predict(img_array)
+                predicted_idx = np.argmax(prediction)
+                predicted_class = CLASSES[predicted_idx]
+                confidence = np.max(prediction) * 100
+                st.session_state.prediction_data = {
+                    "prediction": prediction,
+                    "predicted_idx": predicted_idx,
+                    "predicted_class": predicted_class,
+                    "confidence": confidence
+                }
+                st.session_state.history.append({"time": datetime.datetime.now().strftime("%H:%M:%S"), "class": predicted_class, "confidence": confidence})
 
-        st.session_state.history.append({"time": datetime.datetime.now().strftime("%H:%M:%S"), "class": predicted_class, "confidence": confidence})
+        p_data = st.session_state.prediction_data
+        prediction = p_data["prediction"]
+        predicted_class = p_data["predicted_class"]
+        confidence = p_data["confidence"]
+        color = CLASS_COLORS[predicted_class]
 
         st.markdown(f"""
         <div class="verdict" style="background:{color}1A; border-color:{color}66; box-shadow: 0 8px 30px {color}25;">
@@ -579,8 +608,13 @@ with col2:
         heatmap_overlay = None
         if show_heatmap:
             with st.expander("🔥 Grad-CAM Spatial Mapping", expanded=True):
-                with st.spinner("Rendering thermal map..."):
-                    heatmap = make_gradcam_heatmap(img_array, model)
+                if st.session_state.heatmap_data is None:
+                    with st.spinner("Rendering thermal map..."):
+                        heatmap = make_gradcam_heatmap(img_array, model)
+                        if heatmap is not None:
+                            st.session_state.heatmap_data = heatmap
+                
+                heatmap = st.session_state.heatmap_data
                 if heatmap is not None:
                     heatmap_overlay = overlay_heatmap(img_resized, heatmap)
                     hc1, hc2 = st.columns(2)
